@@ -93,10 +93,14 @@ io.on('connection', (socket) => {
     if (count === 5) roles = ['Raja', 'Rani', 'Mantri', 'Sipahi', 'Thirudan'];
     if (count === 6) roles = ['Raja', 'Rani', 'Mantri', 'Sipahi', 'Police', 'Thirudan'];
 
-    // Shuffle roles
-    const shuffledRoles = [...roles].sort(() => Math.random() - 0.5);
+    // Fisher-Yates Shuffle for true randomness
+    for (let i = roles.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [roles[i], roles[j]] = [roles[j], roles[i]];
+    }
+
     room.players.forEach((p, i) => {
-      p.role = shuffledRoles[i];
+      p.role = roles[i];
       p.isFinished = false;
     });
 

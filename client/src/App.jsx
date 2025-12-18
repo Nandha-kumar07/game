@@ -185,6 +185,7 @@ function App() {
 
       <div className="status-text" style={{ fontSize: 16 }}>
         {isMyTurn ? <span className="highlight">🌟 Your Turn to Seek!</span> : <span>{message}</span>}
+        <div style={{ fontSize: 10, opacity: 0.6, marginTop: 4 }}>(Roles of others are hidden until found)</div>
       </div>
 
       <div className="card-grid">
@@ -197,7 +198,9 @@ function App() {
           return (
             <motion.div key={p.id} whileTap={{ scale: 0.95 }} className={`game-card ${p.isFinished ? 'finished' : ''}`}
               onClick={() => canClick && handleGuess(p.id)} style={{ border: canClick ? '2px dashed var(--accent)' : '1px solid var(--card-border)' }}>
-              <div style={{ marginBottom: 12, fontWeight: 600, fontSize: 14, opacity: 0.9 }}>{p.name}</div>
+              <div style={{ marginBottom: 12, fontWeight: 600, fontSize: 14, opacity: 0.9 }}>
+                {p.name} {isMe && <span style={{ color: 'var(--accent)', fontSize: 10 }}>(You)</span>}
+              </div>
               <AnimatePresence mode="wait">
                 {showRole ? (
                   <motion.div key="role" initial={{ rotateY: 90 }} animate={{ rotateY: 0 }} className={`role-badge badge-${p.role?.toLowerCase().replace(/\s+/g, '-')}`}>
