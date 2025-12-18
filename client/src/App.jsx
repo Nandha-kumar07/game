@@ -252,7 +252,7 @@ function App() {
                   >
                     {player.role === 'Raja' && <Crown size={16} />}
                     {player.role === 'Rani' && <User size={16} />}
-                    {(player.role.includes('Sipahi') || player.role === 'Police') && <Shield size={16} />}
+                    {(player.role?.includes('Sipahi') || player.role === 'Police') && <Shield size={16} />}
                     {(player.role === 'Chor' || player.role === 'Thridan') && <Ghost size={16} />}
                     {player.role === 'Mantri' && <Trophy size={16} />}
                     <span style={{ marginLeft: 4 }}>{player.role}</span>
