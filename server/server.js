@@ -4,16 +4,19 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 require('dotenv').config();
 
+const rawClientUrl = process.env.CLIENT_URL || "*";
+const clientUrl = rawClientUrl.endsWith('/') ? rawClientUrl.slice(0, -1) : rawClientUrl;
+
 const app = express();
 app.use(cors({
-  origin: process.env.CLIENT_URL || "*",
+  origin: clientUrl,
   methods: ["GET", "POST"]
 }));
 
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || "*",
+    origin: clientUrl,
     methods: ["GET", "POST"]
   }
 });
