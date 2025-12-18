@@ -193,13 +193,13 @@ function App() {
           <div style={{ fontSize: 14, marginTop: 4 }}>Minimum 4 required to start</div>
         </div>
         <div style={{ marginTop: 20 }}>
-          {room?.players.map(p => (
+          {room?.players?.map(p => (
             <div key={p.id} className="glass" style={{ padding: 12, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
               <User size={18} /> {p.name} {p.id === socket.id && '(You)'}
             </div>
           ))}
         </div>
-        {room?.players.length >= 4 && (
+        {(room?.players?.length >= 4) && (
           <button className="btn" style={{ marginTop: 20, background: '#10b981' }} onClick={startGame}>
             Start Game Now
           </button>
@@ -272,7 +272,7 @@ function App() {
             <Award className="text-raja" /> Final Scoreboard
           </h3>
           <div className="scoreboard-list">
-            {room.players.sort((a, b) => b.totalScore - a.totalScore).map((p, index) => (
+            {(room?.players || []).slice().sort((a, b) => b.totalScore - a.totalScore).map((p, index) => (
               <div key={p.id} className="scoreboard-item">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div className="rank-badge">

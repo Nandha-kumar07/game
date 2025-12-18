@@ -77,7 +77,7 @@ io.on('connection', (socket) => {
 
   socket.on('start_game_manual', (roomId) => {
     const room = ROOMS[roomId];
-    if (room.players.length >= 4) {
+    if (room && room.players.length >= 4) {
       startRound(roomId);
     }
   });
@@ -113,6 +113,7 @@ io.on('connection', (socket) => {
 
   socket.on('raja_find_rani', ({ roomId, targetPlayerId }) => {
     const room = ROOMS[roomId];
+    if (!room) return;
     const targetPlayer = room.players.find(p => p.id === targetPlayerId);
 
     if (targetPlayer.role === 'Rani') {
@@ -160,7 +161,9 @@ io.on('connection', (socket) => {
   });
 
   socket.on('next_round', (roomId) => {
-    startRound(roomId);
+    if (ROOMS[roomId]) {
+      startRound(roomId);
+    }
   });
 
   socket.on('disconnect', () => {
