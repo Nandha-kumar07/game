@@ -2,7 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import io from 'socket.io-client';
 import Peer from 'peerjs';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, LogIn, Crown, Shield, User, Ghost, Trophy, Mic, MicOff, RefreshCw, Volume2, Star, Award, Medal } from 'lucide-react';
+import { Users, LogIn, Crown, Shield, User, Ghost, Trophy, Mic, MicOff, RefreshCw, Award, Search, HelpCircle, AlertCircle } from 'lucide-react';
+
+import successMp3 from './assets/valthukal-valthuka.mp3';
 
 const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const socket = io(BACKEND_URL);
@@ -15,100 +17,84 @@ function App() {
   const [localRole, setLocalRole] = useState(null);
   const [message, setMessage] = useState('Waiting for players...');
   const [micOn, setMicOn] = useState(false);
-  const [popup, setPopup] = useState(null); // { type: 'success' | 'error', text: string }
+  const [popup, setPopup] = useState(null);
 
-  // Voice Chat Refs
   const peerRef = useRef(null);
   const myStreamRef = useRef(null);
-  const peersRef = useRef({}); // playerSocketId -> call
-  const audioRefs = useRef({}); // playerSocketId -> HTMLAudioElement
+  const peersRef = useRef({});
+  const audioRefs = useRef({});
 
-  // Sound Refs
-  const successSound = useRef(new Audio('/sounds/valthukal.mp3'));
-  const catchSound = useRef(new Audio('/sounds/catch.mp3'));
+  const successSound = useRef(new Audio(successMp3));
   const errorSound = useRef(new Audio('/sounds/nagarjuna.mp3'));
 
   useEffect(() => {
-    socket.on('room_update', (updatedRoom) => {
-      setRoom(updatedRoom);
-    });
+    socket.on('room_update', (updatedRoom) => setRoom(updatedRoom));
 
     socket.on('start_round', (updatedRoom) => {
       setRoom(updatedRoom);
       const me = updatedRoom.players.find(p => p.id === socket.id);
       setLocalRole(me.role);
-      setMessage(`Round Started! You are ${me.role}`);
-      // Start voice if mic was previously toggled? 
-      // Better to wait for deliberate click to avoid echo/spam
+      setMessage(`You are ${me.role}! Let's find your target.`);
     });
 
     socket.on('guess_success', (updatedRoom) => {
       setRoom(updatedRoom);
       setPopup({ type: 'success', text: 'Valthukal Valthukal!' });
-      successSound.current.play().catch(e => console.log('Audio wait user interaction'));
+      successSound.current.play().catch(() => { });
       setTimeout(() => setPopup(null), 3000);
     });
 
     socket.on('guess_wrong', ({ room: updatedRoom, message: msg }) => {
       setRoom(updatedRoom);
       setMessage(msg);
-      setPopup({ type: 'error', text: 'Enathu Nagarjuna va?' });
-      errorSound.current.play().catch(e => console.log('Audio wait user interaction'));
+      setPopup({ type: 'error', text: 'Oops! Role Swapped.' });
+      errorSound.current.play().catch(() => { });
       setTimeout(() => setPopup(null), 3500);
     });
 
     socket.on('round_ended', (updatedRoom) => {
       setRoom(updatedRoom);
-      setMessage('Round Over! See the scores.');
-      catchSound.current.play().catch(e => console.log('Audio wait user interaction'));
+      setMessage('Round Over! Final Rankings below.');
     });
 
     return () => {
       socket.off('room_update');
       socket.off('start_round');
-      socket.off('raja_success');
-      socket.off('raja_wrong');
+      socket.off('guess_success');
+      socket.off('guess_wrong');
       socket.off('round_ended');
       if (peerRef.current) peerRef.current.destroy();
     };
   }, []);
 
-  // Voice Chat Logic
   useEffect(() => {
-    if (micOn && !peerRef.current && isJoined) {
-      initVoice();
-    } else if (!micOn && peerRef.current) {
-      stopVoice();
-    }
+    if (micOn && !peerRef.current && isJoined) initVoice();
+    else if (!micOn && peerRef.current) stopVoice();
   }, [micOn, isJoined]);
 
   const initVoice = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       myStreamRef.current = stream;
-
-      const peer = new Peer(socket.id);
+      const peer = new Peer(socket.id, {
+        config: { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] }
+      });
       peerRef.current = peer;
 
       peer.on('call', (call) => {
         call.answer(stream);
-        call.on('stream', (remoteStream) => {
-          addRemoteAudio(call.peer, remoteStream);
-        });
+        call.on('stream', (remoteStream) => addRemoteAudio(call.peer, remoteStream));
       });
 
-      // Call everyone already in room
       room.players.forEach(p => {
         if (p.id !== socket.id) {
           const call = peer.call(p.id, stream);
-          call.on('stream', (remoteStream) => {
-            addRemoteAudio(p.id, remoteStream);
-          });
+          call.on('stream', (remoteStream) => addRemoteAudio(p.id, remoteStream));
           peersRef.current[p.id] = call;
         }
       });
     } catch (err) {
-      console.error('Failed to get local stream', err);
+      console.error('Mic Error:', err);
       setMicOn(false);
     }
   };
@@ -123,17 +109,10 @@ function App() {
   };
 
   const stopVoice = () => {
-    if (myStreamRef.current) {
-      myStreamRef.current.getTracks().forEach(track => track.stop());
-    }
-    if (peerRef.current) {
-      peerRef.current.destroy();
-      peerRef.current = null;
-    }
-    Object.values(audioRefs.current).forEach(a => {
-      a.pause();
-      a.srcObject = null;
-    });
+    if (myStreamRef.current) myStreamRef.current.getTracks().forEach(t => t.stop());
+    if (peerRef.current) peerRef.current.destroy();
+    peerRef.current = null;
+    Object.values(audioRefs.current).forEach(a => { a.pause(); a.srcObject = null; });
     audioRefs.current = {};
     peersRef.current = {};
   };
@@ -146,185 +125,119 @@ function App() {
   };
 
   const handleGuess = (targetId) => {
-    if (!room) return;
-
-    // Stage check
-    if (isMyTurn) {
-      socket.emit('make_guess', { roomId, targetPlayerId: targetId });
-    }
+    if (isMyTurn) socket.emit('make_guess', { roomId, targetPlayerId: targetId });
   };
 
-  const startGame = () => {
-    socket.emit('start_game_manual', roomId);
-  };
+  const isMyTurn = room?.gameState?.currentGuesser === socket.id;
 
-  const nextRound = () => {
-    socket.emit('next_round', roomId);
-  };
+  if (!isJoined) return (
+    <div className="glass">
+      <motion.h1 initial={{ y: -20 }} animate={{ y: 0 }} style={{ marginBottom: 32, textAlign: 'center', fontSize: 40, fontWeight: 900 }}>👑 Raja Rani</motion.h1>
+      <input className="input-field" placeholder="Your Amazing Name" value={playerName} onChange={e => setPlayerName(e.target.value)} />
+      <input className="input-field" placeholder="Room ID (e.g. 1234)" value={roomId} onChange={e => setRoomId(e.target.value)} />
+      <button className="btn" onClick={joinRoom}><LogIn size={20} /> Join Realm</button>
+    </div>
+  );
 
-  if (!isJoined) {
-    return (
-      <div className="glass">
-        <h1 style={{ marginBottom: 24, textAlign: 'center' }}>👑 Raja Rani</h1>
-        <input
-          className="input-field"
-          placeholder="Enter Your Name"
-          value={playerName}
-          onChange={(e) => setPlayerName(e.target.value)}
-        />
-        <input
-          className="input-field"
-          placeholder="Room ID"
-          value={roomId}
-          onChange={(e) => setRoomId(e.target.value)}
-        />
-        <button className="btn" onClick={joinRoom}>
-          <LogIn size={20} /> Join Game
-        </button>
+  if (!room || room.status === 'waiting') return (
+    <div className="glass">
+      <h2 style={{ marginBottom: 20, fontSize: 28, fontWeight: 800 }}>🏰 Lounge: {roomId}</h2>
+      <div className="status-text">
+        {room?.players.length < 4 ? <RefreshCw className="animate-spin" size={24} style={{ margin: '0 auto 10px' }} /> : <Users size={24} style={{ margin: '0 auto 10px', color: '#4ade80' }} />}
+        Waiting for Challengers... ({room?.players.length || 0}/6)
       </div>
-    );
-  }
-
-  if (!room || room.status === 'waiting') {
-    return (
-      <div className="glass">
-        <h2 style={{ marginBottom: 16 }}>Lobby: {roomId}</h2>
-        <div className="status-text">
-          {room?.players.length < 4 ? <RefreshCw className="animate-spin" size={24} style={{ margin: '0 auto 10px' }} /> : <Users size={24} style={{ margin: '0 auto 10px', color: '#4ade80' }} />}
-          Players ({room?.players.length || 0}/6)
-          <div style={{ fontSize: 14, marginTop: 4 }}>Minimum 4 required to start</div>
-        </div>
-        <div style={{ marginTop: 20 }}>
-          {room?.players?.map(p => (
-            <div key={p.id} className="glass" style={{ padding: 12, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ marginTop: 20 }}>
+        {room?.players?.map(p => (
+          <motion.div initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} key={p.id} className="scoreboard-item" style={{ marginBottom: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <User size={18} /> {p.name} {p.id === socket.id && '(You)'}
             </div>
-          ))}
-        </div>
-        {(room?.players?.length >= 4) && (
-          <button className="btn" style={{ marginTop: 20, background: '#10b981' }} onClick={startGame}>
-            Start Game Now
-          </button>
-        )}
+            {p.id === socket.id && <Crown size={16} color="#fbbf24" />}
+          </motion.div>
+        ))}
       </div>
-    );
-  }
-
-  const isMyTurn = (room.gameState.stage === 'RAJAS_TURN' && room.gameState.currentGuesser === socket.id) ||
-    (room.gameState.stage === 'SIPAHIS_TURN' && localRole === 'Sipahi');
+      {room?.players?.length >= 4 && (
+        <button className="btn" style={{ marginTop: 24, background: 'var(--accent)', color: 'black' }} onClick={() => socket.emit('start_game_manual', roomId)}>
+          Start Game
+        </button>
+      )}
+    </div>
+  );
 
   return (
-    <div className="glass" style={{ position: 'relative' }}>
+    <div className="glass">
       <AnimatePresence>
         {popup && (
-          <motion.div
-            initial={{ scale: 0, y: 50, opacity: 0 }}
-            animate={{ scale: 1.2, y: 0, opacity: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
-            className={`popup-overlay ${popup.type}`}
-            style={{
-              position: 'absolute',
-              top: '40%',
-              left: '10%',
-              right: '10%',
-              zIndex: 100,
-              padding: '30px',
-              borderRadius: '20px',
-              textAlign: 'center',
-              boxShadow: '0 0 40px rgba(0,0,0,0.5)',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 15,
-              background: popup.type === 'success' ? 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)' : 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)',
-              color: 'white',
-              border: '4px solid white'
-            }}
-          >
-            <div style={{ fontSize: 50 }}>{popup.type === 'success' ? '👑' : '🎭'}</div>
-            <div style={{ fontSize: 24, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1 }}>{popup.text}</div>
+          <motion.div initial={{ scale: 0, y: 50, opacity: 0 }} animate={{ scale: 1.1, y: 0, opacity: 1 }} exit={{ scale: 0, opacity: 0 }} className={`popup-overlay ${popup.type}`}
+            style={{ position: 'absolute', top: '25%', left: '5%', right: '5%', zIndex: 100, padding: 40, borderRadius: 24, textAlign: 'center', background: popup.type === 'success' ? 'var(--raja)' : 'var(--thirudan)', border: '4px solid white' }}>
+            <div style={{ fontSize: 64 }}>{popup.type === 'success' ? '🏆' : '🎭'}</div>
+            <div style={{ fontSize: 24, fontWeight: 900, marginTop: 16 }}>{popup.text}</div>
           </motion.div>
         )}
       </AnimatePresence>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <h2>Room: {roomId}</h2>
-        <button
-          onClick={() => setMicOn(!micOn)}
-          style={{ background: 'none', border: 'none', color: micOn ? '#4ade80' : '#94a3b8', cursor: 'pointer' }}
-        >
+        <h3 style={{ fontSize: 18, opacity: 0.8 }}>Realm: {roomId}</h3>
+        <button onClick={() => setMicOn(!micOn)} style={{ background: micOn ? 'var(--primary-glow)' : 'transparent', border: '1px solid var(--card-border)', borderRadius: '50%', padding: 10, color: micOn ? '#4ade80' : '#94a3b8', cursor: 'pointer' }}>
           {micOn ? <Mic size={24} /> : <MicOff size={24} />}
         </button>
       </div>
 
-      <div className="status-text">
-        {isMyTurn ? <span className="highlight">It's Your Turn!</span> : message}
+      <div className="status-text" style={{ fontSize: 16 }}>
+        {isMyTurn ? <span className="highlight">🌟 Your Turn to Seek!</span> : <span>{message}</span>}
       </div>
 
       <div className="card-grid">
-        {room.players.map(player => {
-          const isRevealed = room.gameState.revealedRoles.find(r => r.playerId === player.id);
-          const isMe = player.id === socket.id;
-          const showRole = isRevealed || (isMe && room.status === 'playing');
+        {room.players.map(p => {
+          const isRevealed = room.gameState.revealedRoles.find(r => r.playerId === p.id);
+          const isMe = p.id === socket.id;
+          const showRole = isRevealed || (isMe && !p.isFinished);
+          const canClick = isMyTurn && !isRevealed && !isMe;
 
           return (
-            <motion.div
-              key={player.id}
-              whileHover={{ scale: isMyTurn && !isRevealed && !isMe ? 1.05 : 1 }}
-              whileTap={{ scale: 0.95 }}
-              className={`game-card ${isRevealed ? player.role?.toLowerCase().replace(/\s+/g, '-') : ''}`}
-              onClick={() => isMyTurn && !isRevealed && !isMe && handleGuess(player.id)}
-            >
-              <div style={{ marginBottom: 8, fontWeight: 600 }}>{player.name}</div>
-
+            <motion.div key={p.id} whileTap={{ scale: 0.95 }} className={`game-card ${p.isFinished ? 'finished' : ''}`}
+              onClick={() => canClick && handleGuess(p.id)} style={{ border: canClick ? '2px dashed var(--accent)' : '1px solid var(--card-border)' }}>
+              <div style={{ marginBottom: 12, fontWeight: 600, fontSize: 14, opacity: 0.9 }}>{p.name}</div>
               <AnimatePresence mode="wait">
                 {showRole ? (
-                  <motion.div
-                    initial={{ rotateY: 90 }}
-                    animate={{ rotateY: 0 }}
-                    className={`role-badge badge-${player.role?.toLowerCase().replace(/\s+/g, '-')}`}
-                  >
-                    {player.role === 'Raja' && <Crown size={16} />}
-                    {player.role === 'Rani' && <User size={16} />}
-                    {(player.role?.includes('Sipahi') || player.role === 'Police') && <Shield size={16} />}
-                    {(player.role === 'Chor' || player.role === 'Thridan') && <Ghost size={16} />}
-                    {player.role === 'Mantri' && <Trophy size={16} />}
-                    <span style={{ marginLeft: 4 }}>{player.role}</span>
+                  <motion.div key="role" initial={{ rotateY: 90 }} animate={{ rotateY: 0 }} className={`role-badge badge-${p.role?.toLowerCase().replace(/\s+/g, '-')}`}>
+                    {p.role === 'Raja' && <Crown size={14} />}
+                    {p.role === 'Rani' && <User size={14} />}
+                    {p.role === 'Mantri' && <Trophy size={14} />}
+                    {p.role === 'Sipahi' && <Shield size={14} />}
+                    {p.role === 'Police' && <Shield size={14} />}
+                    {p.role === 'Thridan' && <Ghost size={14} />}
+                    <span style={{ marginLeft: 4 }}>{p.role}</span>
                   </motion.div>
                 ) : (
-                  <div key="hidden" style={{ fontSize: 24 }}>❓</div>
+                  <motion.div key="hidden" style={{ fontSize: 32 }}>❓</motion.div>
                 )}
               </AnimatePresence>
+              {canClick && <motion.div animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity }} style={{ position: 'absolute', bottom: 8 }}><Search size={16} color="var(--accent)" /></motion.div>}
             </motion.div>
           );
         })}
       </div>
 
       {room.status === 'round_ended' && (
-        <div style={{ marginTop: 24 }} className="glass">
-          <h3 style={{ marginBottom: 16, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-            <Award className="text-raja" /> Final Scoreboard
-          </h3>
+        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="glass" style={{ border: 'none', background: 'rgba(255,255,255,0.05)', marginTop: 24 }}>
+          <h3 style={{ textAlign: 'center', marginBottom: 20, fontSize: 20, fontWeight: 800 }}>👑 Final Standings</h3>
           <div className="scoreboard-list">
-            {(room?.players || []).slice().sort((a, b) => b.totalScore - a.totalScore).map((p, index) => (
-              <div key={p.id} className="scoreboard-item">
+            {(room?.players || []).slice().sort((a, b) => b.totalScore - a.totalScore).map((p, i) => (
+              <div key={p.id} className="scoreboard-item" style={{ borderLeft: `4px solid ${i === 0 ? '#ffd700' : 'transparent'}` }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div className="rank-badge">
-                    {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}th`}
-                  </div>
+                  <span style={{ fontSize: 24 }}>{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '🎖️'}</span>
                   <div>
-                    <div style={{ fontWeight: 600 }}>{p.name}</div>
-                    <div style={{ fontSize: 12, opacity: 0.7 }}>{p.role}</div>
+                    <div style={{ fontWeight: 800, fontSize: 16 }}>{p.name}</div>
+                    <div style={{ fontSize: 12, opacity: 0.6 }}>{p.role}</div>
                   </div>
                 </div>
-                <div className="score-val">{p.totalScore} pts</div>
+                <div className="score-val">{p.totalScore}</div>
               </div>
             ))}
           </div>
-          <button className="btn" style={{ marginTop: 24 }} onClick={nextRound}>
-            Start Next Round
-          </button>
-        </div>
+          <button className="btn" style={{ marginTop: 24, background: 'var(--primary)' }} onClick={() => socket.emit('next_round', roomId)}>Next Realm</button>
+        </motion.div>
       )}
     </div>
   );

@@ -87,23 +87,27 @@ io.on('connection', (socket) => {
     room.status = 'playing';
 
     const count = room.players.length;
-    let roles = ['Raja', 'Rani', 'Sipahi', 'Thridan'];
+    // Raja, Rani, Mantri, Sipahi, Police, Thirudan
+    let roles = ['Raja', 'Rani', 'Sipahi', 'Thridan']; // Default 4
 
-    if (count === 5) roles.push('Mantri');
-    if (count === 6) roles.push('Mantri', 'Police');
+    if (count === 5) roles = ['Raja', 'Rani', 'Mantri', 'Sipahi', 'Thridan'];
+    if (count === 6) roles = ['Raja', 'Rani', 'Mantri', 'Sipahi', 'Police', 'Thridan'];
 
     // Shuffle roles
     const shuffledRoles = [...roles].sort(() => Math.random() - 0.5);
     room.players.forEach((p, i) => {
       p.role = shuffledRoles[i];
+      p.isFinished = false;
     });
+
+    const raja = room.players.find(p => p.role === 'Raja');
 
     // Reset round state
     room.gameState = {
       stage: 'RAJAS_TURN',
-      currentGuesser: room.players.find(p => p.role === 'Raja').id,
+      currentGuesser: raja.id,
       revealedRoles: [
-        { playerId: room.players.find(p => p.role === 'Raja').id, role: 'Raja' }
+        { playerId: raja.id, role: 'Raja' }
       ],
       wrongGuesses: []
     };
@@ -118,7 +122,8 @@ io.on('connection', (socket) => {
     const guesser = room.players.find(p => p.id === socket.id);
     const target = room.players.find(p => p.id === targetPlayerId);
 
-    // Stage-based target mapping
+    if (guesser.id !== room.gameState.currentGuesser) return;
+
     const STAGE_TARGETS = {
       'RAJAS_TURN': 'Rani',
       'RANIS_TURN': 'Mantri',
@@ -127,13 +132,15 @@ io.on('connection', (socket) => {
       'POLICES_TURN': 'Thridan'
     };
 
-    // If only 4 players, Sipahi finds Thridan directly
-    if (room.players.length === 4 && room.gameState.stage === 'SIPAHIS_TURN') {
-      STAGE_TARGETS['SIPAHIS_TURN'] = 'Thridan';
-    }
-    // If 5 players, Sipahi finds Thridan directly
-    if (room.players.length === 5 && room.gameState.stage === 'SIPAHIS_TURN') {
-      STAGE_TARGETS['SIPAHIS_TURN'] = 'Thridan';
+    // Dynamic targets based on player count
+    const count = room.players.length;
+    if (room.gameState.stage === 'RAJAS_TURN' && count === 4) STAGE_TARGETS['RAJAS_TURN'] = 'Rani'; // Stay Rani
+    if (room.gameState.stage === 'RANIS_TURN' && count === 4) STAGE_TARGETS['RANIS_TURN'] = 'Sipahi';
+    if (room.gameState.stage === 'SIPAHIS_TURN') STAGE_TARGETS['SIPAHIS_TURN'] = 'Thridan';
+
+    if (count === 5) {
+      if (room.gameState.stage === 'MANTRIS_TURN') STAGE_TARGETS['MANTRIS_TURN'] = 'Sipahi';
+      if (room.gameState.stage === 'SIPAHIS_TURN') STAGE_TARGETS['SIPAHIS_TURN'] = 'Thridan';
     }
 
     const targetRole = STAGE_TARGETS[room.gameState.stage];
@@ -142,20 +149,20 @@ io.on('connection', (socket) => {
     if (target.role === targetRole) {
       // SUCCESS
       room.gameState.revealedRoles.push({ playerId: targetPlayerId, role: targetRole });
+      guesser.isFinished = true;
+      guesser.totalScore += (POINTS[guesser.role] || 0);
 
-      const count = room.players.length;
       let nextStage = 'END';
+      const stages = ['RAJAS_TURN', 'RANIS_TURN', 'MANTRIS_TURN', 'SIPAHIS_TURN', 'POLICES_TURN'];
+      const currentIndex = stages.indexOf(room.gameState.stage);
 
-      if (room.gameState.stage === 'RAJAS_TURN') {
-        nextStage = count >= 5 ? 'RANIS_TURN' : 'SIPAHIS_TURN';
-      } else if (room.gameState.stage === 'RANIS_TURN') {
-        nextStage = count >= 6 ? 'MANTRIS_TURN' : 'SIPAHIS_TURN';
-      } else if (room.gameState.stage === 'MANTRIS_TURN') {
-        nextStage = 'SIPAHIS_TURN';
-      } else if (room.gameState.stage === 'SIPAHIS_TURN') {
-        nextStage = count >= 6 ? 'POLICES_TURN' : 'END';
-      } else if (room.gameState.stage === 'POLICES_TURN') {
-        nextStage = 'END';
+      // Find next valid stage based on player count
+      for (let i = currentIndex + 1; i < stages.length; i++) {
+        const roleNeeded = stages[i].split('_')[0].charAt(0).toUpperCase() + stages[i].split('_')[0].slice(1, -1).toLowerCase();
+        if (room.players.some(p => p.role === roleNeeded)) {
+          nextStage = stages[i];
+          break;
+        }
       }
 
       room.gameState.stage = nextStage;
@@ -163,22 +170,38 @@ io.on('connection', (socket) => {
       if (nextStage === 'END') {
         endRound(roomId);
       } else {
-        // Set next guesser based on next stage
-        const nextGuesserRole = nextStage.split('_')[0].slice(0, -1).charAt(0).toUpperCase() + nextStage.split('_')[0].slice(0, -1).slice(1).toLowerCase();
-        const nextGuesser = room.players.find(p => p.role === nextGuesserRole);
-        if (nextGuesser) room.gameState.currentGuesser = nextGuesser.id;
-
+        const nextGuesserId = targetPlayerId; // Person found becomes the next guesser
+        room.gameState.currentGuesser = nextGuesserId;
         io.to(roomId).emit('guess_success', room);
       }
     } else {
-      // FAILURE - Person wrongly guessed becomes the guesser
-      room.gameState.revealedRoles.push({ playerId: targetPlayerId, role: target.role });
-      room.gameState.wrongGuesses.push(targetPlayerId);
-      room.gameState.currentGuesser = targetPlayerId;
+      // FAILURE - ROLE SWAP
+      const oldGuesserRole = guesser.role;
+      const oldTargetRole = target.role;
+
+      // Swap roles
+      guesser.role = oldTargetRole;
+      target.role = oldGuesserRole;
+
+      // Update revealed roles: 
+      // 1. Remove the old Raja (who is now oldTargetRole)
+      // 2. Add the NEW Raja (target who was oldTargetRole)
+      // We essentially just need to make sure 'Raja' role is always mapped to the right person
+
+      const newRaja = room.players.find(p => p.role === 'Raja');
+
+      // Update revealedRoles array
+      // Remove any 'Raja' entry and add the new one. 
+      // Also keep any other revealed roles (like previously found Rani etc).
+      room.gameState.revealedRoles = room.gameState.revealedRoles.filter(r => r.role !== 'Raja');
+      room.gameState.revealedRoles.push({ playerId: newRaja.id, role: 'Raja' });
+
+      // Maintain current stage but change guesser
+      room.gameState.currentGuesser = target.id;
 
       io.to(roomId).emit('guess_wrong', {
         room,
-        message: `${target.name} is not ${targetRole}. Now ${target.name} will find ${targetRole}!`
+        message: `Oops! ${target.name} was ${oldTargetRole}. Now roles are swapped! ${target.name} is now ${oldGuesserRole} and must find ${targetRole}!`
       });
     }
   });
@@ -188,11 +211,10 @@ io.on('connection', (socket) => {
     if (!room) return;
     room.status = 'round_ended';
 
-    // Award Points
+    // Everyone who wasn't caught gets their role points if they didn't already
     room.players.forEach(p => {
-      // Basic logic: Everyone gets points except Thridan (who was caught)
-      if (p.role !== 'Thridan') {
-        p.totalScore += POINTS[p.role] || 500;
+      if (!p.isFinished && p.role !== 'Thridan') {
+        p.totalScore += (POINTS[p.role] || 0);
       }
     });
 
