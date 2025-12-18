@@ -76,25 +76,51 @@ function App() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       myStreamRef.current = stream;
+
       const peer = new Peer(socket.id, {
-        config: { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] }
+        config: {
+          'iceServers': [
+            { 'urls': 'stun:stun.l.google.com:19302' },
+            { 'urls': 'stun:stun1.l.google.com:19302' },
+            { 'urls': 'stun:stun2.l.google.com:19302' },
+            { 'urls': 'stun:stun3.l.google.com:19302' },
+            { 'urls': 'stun:stun4.l.google.com:19302' },
+            { 'urls': 'stun:global.stun.twilio.com:3478' }
+          ]
+        },
+        debug: 3 // Higher debug level for mobile troubleshooting
       });
       peerRef.current = peer;
 
+      peer.on('open', (id) => console.log('Peer connected with ID:', id));
+      peer.on('error', (err) => console.error('PeerJS Global Error:', err));
+
       peer.on('call', (call) => {
+        console.log('Receiving call from:', call.peer);
         call.answer(stream);
-        call.on('stream', (remoteStream) => addRemoteAudio(call.peer, remoteStream));
+        call.on('stream', (remoteStream) => {
+          console.log('Received stream from:', call.peer);
+          addRemoteAudio(call.peer, remoteStream);
+        });
+        call.on('error', (err) => console.error('Call Error:', err));
       });
 
+      // Call existing players
       room.players.forEach(p => {
         if (p.id !== socket.id) {
+          console.log('Calling player:', p.id);
           const call = peer.call(p.id, stream);
-          call.on('stream', (remoteStream) => addRemoteAudio(p.id, remoteStream));
+          call.on('stream', (remoteStream) => {
+            console.log('Established stream with:', p.id);
+            addRemoteAudio(p.id, remoteStream);
+          });
+          call.on('error', (err) => console.error('Call Connection Error:', err));
           peersRef.current[p.id] = call;
         }
       });
     } catch (err) {
-      console.error('Mic Error:', err);
+      console.error('System Mic Error:', err);
+      alert('Could not access microphone. Please check your browser permissions and ensure you are on HTTPS.');
       setMicOn(false);
     }
   };
@@ -103,7 +129,27 @@ function App() {
     if (!audioRefs.current[peerId]) {
       const audio = new Audio();
       audio.srcObject = stream;
-      audio.play();
+      audio.autoplay = true;
+      audio.playsInline = true; // Helpful for mobile
+      audio.volume = 1.0;
+
+      // Hidden container to keep audio elements in DOM
+      let container = document.getElementById('audio-container');
+      if (!container) {
+        container = document.createElement('div');
+        container.id = 'audio-container';
+        container.style.display = 'none';
+        document.body.appendChild(container);
+      }
+      container.appendChild(audio);
+
+      audio.play().then(() => {
+        console.log('Playback started for:', peerId);
+      }).catch(err => {
+        console.error('Autoplay blocked for remote audio. User interaction might be needed.', err);
+        // If blocked, we could show a "Click to Hear Others" button
+      });
+
       audioRefs.current[peerId] = audio;
     }
   };
