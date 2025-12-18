@@ -156,27 +156,29 @@ io.on('connection', (socket) => {
       guesser.isFinished = true;
       guesser.totalScore += (POINTS[guesser.role] || 0);
 
-      let nextStage = 'END';
-      const stages = ['RAJAS_TURN', 'RANIS_TURN', 'MANTRIS_TURN', 'SIPAHIS_TURN', 'POLICES_TURN'];
-      const currentIndex = stages.indexOf(room.gameState.stage);
-
-      // Find next valid stage based on player count
-      for (let i = currentIndex + 1; i < stages.length; i++) {
-        const roleNeeded = stages[i].split('_')[0].charAt(0).toUpperCase() + stages[i].split('_')[0].slice(1, -1).toLowerCase();
-        if (room.players.some(p => p.role === roleNeeded)) {
-          nextStage = stages[i];
-          break;
-        }
-      }
-
-      room.gameState.stage = nextStage;
-
-      if (nextStage === 'END') {
+      if (targetRole === 'Thirudan') {
         endRound(roomId);
       } else {
-        const nextGuesserId = targetPlayerId; // Person found becomes the next guesser
-        room.gameState.currentGuesser = nextGuesserId;
-        io.to(roomId).emit('guess_success', room);
+        // Find next stage: The next available role in SEEKER_ORDER that exists
+        let nextStage = 'END';
+        const seekerRoles = ['RAJAS_TURN', 'RANIS_TURN', 'MANTRIS_TURN', 'SIPAHIS_TURN', 'POLICES_TURN'];
+        const currentTargetRoleIndex = TARGET_ORDER.indexOf(targetRole);
+
+        for (let i = currentTargetRoleIndex; i < seekerRoles.length; i++) {
+          const roleNeeded = seekerRoles[i].split('_')[0].charAt(0).toUpperCase() + seekerRoles[i].split('_')[0].slice(1, -1).toLowerCase();
+          if (room.players.some(p => p.role === roleNeeded)) {
+            nextStage = seekerRoles[i];
+            break;
+          }
+        }
+
+        room.gameState.stage = nextStage;
+        if (nextStage === 'END') {
+          endRound(roomId);
+        } else {
+          room.gameState.currentGuesser = target.id; // Person found becomes next guesser
+          io.to(roomId).emit('guess_success', room);
+        }
       }
     } else {
       // FAILURE - ROLE SWAP
