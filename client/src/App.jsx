@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import io from 'socket.io-client';
 import Peer from 'peerjs';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, LogIn, Crown, Shield, User, Ghost, Trophy, Mic, MicOff, RefreshCw, Volume2 } from 'lucide-react';
+import { Users, LogIn, Crown, Shield, User, Ghost, Trophy, Mic, MicOff, RefreshCw, Volume2, Star, Award, Medal } from 'lucide-react';
 
 const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const socket = io(BACKEND_URL);
@@ -238,7 +238,7 @@ function App() {
               key={player.id}
               whileHover={{ scale: isMyTurn && !isRevealed && !isMe ? 1.05 : 1 }}
               whileTap={{ scale: 0.95 }}
-              className={`game-card ${isRevealed ? player.role.toLowerCase() : ''}`}
+              className={`game-card ${isRevealed ? player.role?.toLowerCase().replace(/\s+/g, '-') : ''}`}
               onClick={() => isMyTurn && !isRevealed && !isMe && handleGuess(player.id)}
             >
               <div style={{ marginBottom: 8, fontWeight: 600 }}>{player.name}</div>
@@ -248,12 +248,13 @@ function App() {
                   <motion.div
                     initial={{ rotateY: 90 }}
                     animate={{ rotateY: 0 }}
-                    className={`role-badge badge-${player.role?.toLowerCase()}`}
+                    className={`role-badge badge-${player.role?.toLowerCase().replace(/\s+/g, '-')}`}
                   >
                     {player.role === 'Raja' && <Crown size={16} />}
                     {player.role === 'Rani' && <User size={16} />}
-                    {player.role === 'Sipahi' && <Shield size={16} />}
-                    {player.role === 'Chor' && <Ghost size={16} />}
+                    {(player.role.includes('Sipahi') || player.role === 'Police') && <Shield size={16} />}
+                    {(player.role === 'Chor' || player.role === 'Thridan') && <Ghost size={16} />}
+                    {player.role === 'Mantri' && <Trophy size={16} />}
                     <span style={{ marginLeft: 4 }}>{player.role}</span>
                   </motion.div>
                 ) : (
@@ -266,16 +267,28 @@ function App() {
       </div>
 
       {room.status === 'round_ended' && (
-        <div style={{ marginTop: 24 }}>
-          <h3 style={{ marginBottom: 12 }}>Scoreboard</h3>
-          {room.players.sort((a, b) => b.totalScore - a.totalScore).map(p => (
-            <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-              <span>{p.name}</span>
-              <span className="highlight">{p.totalScore} pts</span>
-            </div>
-          ))}
-          <button className="btn" style={{ marginTop: 20 }} onClick={nextRound}>
-            Next Round
+        <div style={{ marginTop: 24 }} className="glass">
+          <h3 style={{ marginBottom: 16, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+            <Award className="text-raja" /> Final Scoreboard
+          </h3>
+          <div className="scoreboard-list">
+            {room.players.sort((a, b) => b.totalScore - a.totalScore).map((p, index) => (
+              <div key={p.id} className="scoreboard-item">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div className="rank-badge">
+                    {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}th`}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 600 }}>{p.name}</div>
+                    <div style={{ fontSize: 12, opacity: 0.7 }}>{p.role}</div>
+                  </div>
+                </div>
+                <div className="score-val">{p.totalScore} pts</div>
+              </div>
+            ))}
+          </div>
+          <button className="btn" style={{ marginTop: 24 }} onClick={nextRound}>
+            Start Next Round
           </button>
         </div>
       )}

@@ -9,6 +9,7 @@
   --accent-rani: #f472b6;
   --accent-sipahi: #3b82f6;
   --accent-chor: #ef4444;
+  --accent-mantri: #a855f7;
 }
 
 * {
@@ -130,6 +131,30 @@ body {
   border-color: var(--accent-chor);
 }
 
+.game-card.mantri {
+  border-color: var(--accent-mantri);
+}
+
+.game-card.sipahi-2 {
+  border-color: var(--accent-sipahi);
+}
+
+.game-card.police {
+  border-color: var(--accent-sipahi);
+}
+
+.game-card.thridan {
+  border-color: var(--accent-chor);
+}
+
+.game-card.mantri {
+  border-color: var(--accent-mantri);
+}
+
+.game-card.sipahi-2 {
+  border-color: var(--accent-sipahi);
+}
+
 .role-badge {
   padding: 4px 12px;
   border-radius: 20px;
@@ -161,6 +186,36 @@ body {
   color: white;
 }
 
+.badge-mantri {
+  background: var(--accent-mantri);
+  color: white;
+}
+
+.badge-sipahi-2 {
+  background: var(--accent-sipahi);
+  color: white;
+}
+
+.badge-police {
+  background: var(--accent-sipahi);
+  color: white;
+}
+
+.badge-thridan {
+  background: var(--accent-chor);
+  color: white;
+}
+
+.badge-mantri {
+  background: var(--accent-mantri);
+  color: white;
+}
+
+.badge-sipahi-2 {
+  background: var(--accent-sipahi);
+  color: white;
+}
+
 .status-text {
   text-align: center;
   margin: 16px 0;
@@ -187,4 +242,37 @@ body {
 
 .animate-spin {
   animation: spin 2s linear infinite;
+}
+
+/* Scoreboard Styles */
+.scoreboard-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.scoreboard-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.rank-badge {
+  font-size: 20px;
+  min-width: 32px;
+  text-align: center;
+}
+
+.score-val {
+  font-weight: 700;
+  color: var(--accent-raja);
+  font-size: 18px;
+}
+
+.text-raja {
+  color: var(--accent-raja);
 }

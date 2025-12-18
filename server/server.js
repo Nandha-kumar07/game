@@ -24,12 +24,14 @@ const io = new Server(server, {
 // Existing ROOMS and logic below...
 const ROOMS = {};
 
-const ROLES = ['Raja', 'Rani', 'Sipahi', 'Chor'];
+const ROLES = ['Raja', 'Rani', 'Mantri', 'Sipahi', 'Police', 'Thridan'];
 const POINTS = {
   'Raja': 1000,
   'Rani': 800,
+  'Mantri': 700,
   'Sipahi': 500,
-  'Chor': 0
+  'Police': 500,
+  'Thridan': 0
 };
 
 io.on('connection', (socket) => {
@@ -85,10 +87,10 @@ io.on('connection', (socket) => {
     room.status = 'playing';
 
     const count = room.players.length;
-    let roles = ['Raja', 'Rani', 'Sipahi', 'Chor'];
+    let roles = ['Raja', 'Rani', 'Sipahi', 'Thridan'];
 
     if (count === 5) roles.push('Mantri');
-    if (count === 6) roles.push('Mantri', 'Sipahi 2');
+    if (count === 6) roles.push('Mantri', 'Police');
 
     // Shuffle roles
     const shuffledRoles = [...roles].sort(() => Math.random() - 0.5);
@@ -120,6 +122,7 @@ io.on('connection', (socket) => {
       room.gameState.revealedRoles.push({ playerId: sipahi.id, role: 'Sipahi' });
       io.to(roomId).emit('raja_success', room);
     } else {
+      room.gameState.revealedRoles.push({ playerId: targetPlayerId, role: targetPlayer.role });
       room.gameState.wrongGuesses.push(targetPlayerId);
       room.gameState.currentGuesser = targetPlayerId;
       io.to(roomId).emit('raja_wrong', {
@@ -131,19 +134,25 @@ io.on('connection', (socket) => {
 
   socket.on('sipahi_find_chor', ({ roomId, targetPlayerId }) => {
     const room = ROOMS[roomId];
+    if (!room) return;
+
     const targetPlayer = room.players.find(p => p.id === targetPlayerId);
-    const sipahiPlayer = room.players.find(p => p.role === 'Sipahi');
-    const chorPlayer = room.players.find(p => p.role === 'Chor');
+    const isSuccess = targetPlayer.role === 'Thridan';
 
-    if (targetPlayer.role === 'Chor') {
-      sipahiPlayer.totalScore += POINTS['Sipahi'];
-    } else {
-      chorPlayer.totalScore += POINTS['Sipahi'];
-      sipahiPlayer.totalScore += 0;
-    }
+    // Award Points
+    room.players.forEach(p => {
+      if (p.role === 'Raja') p.totalScore += POINTS['Raja'];
+      if (p.role === 'Rani') p.totalScore += POINTS['Rani'];
+      if (p.role === 'Mantri') p.totalScore += POINTS['Mantri'];
 
-    room.players.find(p => p.role === 'Raja').totalScore += POINTS['Raja'];
-    room.players.find(p => p.role === 'Rani').totalScore += POINTS['Rani'];
+      if (p.role === 'Sipahi' || p.role === 'Police') {
+        p.totalScore += isSuccess ? POINTS['Sipahi'] : 0;
+      }
+
+      if (p.role === 'Thridan') {
+        p.totalScore += isSuccess ? 0 : POINTS['Sipahi'];
+      }
+    });
 
     room.status = 'round_ended';
     room.gameState.revealedRoles = room.players.map(p => ({ playerId: p.id, role: p.role }));
