@@ -4,7 +4,8 @@ import Peer from 'peerjs';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Users, LogIn, Crown, Shield, User, Ghost, Trophy, Mic, MicOff, RefreshCw, Volume2 } from 'lucide-react';
 
-const socket = io('http://localhost:5000');
+const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const socket = io(BACKEND_URL);
 
 function App() {
   const [playerName, setPlayerName] = useState('');
