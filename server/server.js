@@ -187,18 +187,21 @@ io.on('connection', (socket) => {
       guesser.role = oldTargetRole;
       target.role = oldGuesserRole;
 
-      // Update revealed roles: 
-      // 1. Remove the old Raja (who is now oldTargetRole)
-      // 2. Add the NEW Raja (target who was oldTargetRole)
-      // We essentially just need to make sure 'Raja' role is always mapped to the right person
+      // Update revealed roles to reflect the NEW holders of the seeker chain
+      // We reveal everyone in the chain up to the current stage
+      const seekerRoles = ['Raja', 'Rani', 'Mantri', 'Sipahi', 'Police'];
+      const stages = ['RAJAS_TURN', 'RANIS_TURN', 'MANTRIS_TURN', 'SIPAHIS_TURN', 'POLICES_TURN'];
+      const currentStageIndex = stages.indexOf(room.gameState.stage);
 
-      const newRaja = room.players.find(p => p.role === 'Raja');
-
-      // Update revealedRoles array
-      // Remove any 'Raja' entry and add the new one. 
-      // Also keep any other revealed roles (like previously found Rani etc).
-      room.gameState.revealedRoles = room.gameState.revealedRoles.filter(r => r.role !== 'Raja');
-      room.gameState.revealedRoles.push({ playerId: newRaja.id, role: 'Raja' });
+      const newRevealed = [];
+      for (let i = 0; i <= currentStageIndex; i++) {
+        const roleToFind = seekerRoles[i];
+        const playerWithRole = room.players.find(p => p.role === roleToFind);
+        if (playerWithRole) {
+          newRevealed.push({ playerId: playerWithRole.id, role: roleToFind });
+        }
+      }
+      room.gameState.revealedRoles = newRevealed;
 
       // Maintain current stage but change guesser
       room.gameState.currentGuesser = target.id;

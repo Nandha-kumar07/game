@@ -183,10 +183,12 @@ function App() {
         </button>
       </div>
 
-      <div className="status-text" style={{ fontSize: 16 }}>
-        {isMyTurn ? <span className="highlight">🌟 Your Turn to Seek!</span> : <span>{message}</span>}
-        <div style={{ fontSize: 10, opacity: 0.6, marginTop: 4 }}>(Roles of others are hidden until found)</div>
-      </div>
+      {room.status === 'playing' && (
+        <div className="status-text" style={{ fontSize: 16 }}>
+          {isMyTurn ? <span className="highlight">🌟 Your Turn to Seek!</span> : <span>{message}</span>}
+          <div style={{ fontSize: 10, opacity: 0.6, marginTop: 4 }}>(Roles of others are hidden until found)</div>
+        </div>
+      )}
 
       <div className="card-grid">
         {room.players.map(p => {
