@@ -111,54 +111,94 @@ io.on('connection', (socket) => {
     io.to(roomId).emit('start_round', room);
   }
 
-  socket.on('raja_find_rani', ({ roomId, targetPlayerId }) => {
+  socket.on('make_guess', ({ roomId, targetPlayerId }) => {
     const room = ROOMS[roomId];
-    if (!room) return;
-    const targetPlayer = room.players.find(p => p.id === targetPlayerId);
+    if (!room || room.status !== 'playing') return;
 
-    if (targetPlayer.role === 'Rani') {
-      room.gameState.revealedRoles.push({ playerId: targetPlayerId, role: 'Rani' });
-      room.gameState.stage = 'SIPAHIS_TURN';
-      const sipahi = room.players.find(p => p.role === 'Sipahi');
-      room.gameState.revealedRoles.push({ playerId: sipahi.id, role: 'Sipahi' });
-      io.to(roomId).emit('raja_success', room);
+    const guesser = room.players.find(p => p.id === socket.id);
+    const target = room.players.find(p => p.id === targetPlayerId);
+
+    // Stage-based target mapping
+    const STAGE_TARGETS = {
+      'RAJAS_TURN': 'Rani',
+      'RANIS_TURN': 'Mantri',
+      'MANTRIS_TURN': 'Sipahi',
+      'SIPAHIS_TURN': 'Police',
+      'POLICES_TURN': 'Thridan'
+    };
+
+    // If only 4 players, Sipahi finds Thridan directly
+    if (room.players.length === 4 && room.gameState.stage === 'SIPAHIS_TURN') {
+      STAGE_TARGETS['SIPAHIS_TURN'] = 'Thridan';
+    }
+    // If 5 players, Sipahi finds Thridan directly
+    if (room.players.length === 5 && room.gameState.stage === 'SIPAHIS_TURN') {
+      STAGE_TARGETS['SIPAHIS_TURN'] = 'Thridan';
+    }
+
+    const targetRole = STAGE_TARGETS[room.gameState.stage];
+    if (!targetRole) return;
+
+    if (target.role === targetRole) {
+      // SUCCESS
+      room.gameState.revealedRoles.push({ playerId: targetPlayerId, role: targetRole });
+
+      const count = room.players.length;
+      let nextStage = 'END';
+
+      if (room.gameState.stage === 'RAJAS_TURN') {
+        nextStage = count >= 5 ? 'RANIS_TURN' : 'SIPAHIS_TURN';
+      } else if (room.gameState.stage === 'RANIS_TURN') {
+        nextStage = count >= 6 ? 'MANTRIS_TURN' : 'SIPAHIS_TURN';
+      } else if (room.gameState.stage === 'MANTRIS_TURN') {
+        nextStage = 'SIPAHIS_TURN';
+      } else if (room.gameState.stage === 'SIPAHIS_TURN') {
+        nextStage = count >= 6 ? 'POLICES_TURN' : 'END';
+      } else if (room.gameState.stage === 'POLICES_TURN') {
+        nextStage = 'END';
+      }
+
+      room.gameState.stage = nextStage;
+
+      if (nextStage === 'END') {
+        endRound(roomId);
+      } else {
+        // Set next guesser based on next stage
+        const nextGuesserRole = nextStage.split('_')[0].slice(0, -1).charAt(0).toUpperCase() + nextStage.split('_')[0].slice(0, -1).slice(1).toLowerCase();
+        const nextGuesser = room.players.find(p => p.role === nextGuesserRole);
+        if (nextGuesser) room.gameState.currentGuesser = nextGuesser.id;
+
+        io.to(roomId).emit('guess_success', room);
+      }
     } else {
-      room.gameState.revealedRoles.push({ playerId: targetPlayerId, role: targetPlayer.role });
+      // FAILURE - Person wrongly guessed becomes the guesser
+      room.gameState.revealedRoles.push({ playerId: targetPlayerId, role: target.role });
       room.gameState.wrongGuesses.push(targetPlayerId);
       room.gameState.currentGuesser = targetPlayerId;
-      io.to(roomId).emit('raja_wrong', {
+
+      io.to(roomId).emit('guess_wrong', {
         room,
-        message: `${targetPlayer.name} is not Rani. Now ${targetPlayer.name} will find Rani!`
+        message: `${target.name} is not ${targetRole}. Now ${target.name} will find ${targetRole}!`
       });
     }
   });
 
-  socket.on('sipahi_find_chor', ({ roomId, targetPlayerId }) => {
+  function endRound(roomId) {
     const room = ROOMS[roomId];
     if (!room) return;
-
-    const targetPlayer = room.players.find(p => p.id === targetPlayerId);
-    const isSuccess = targetPlayer.role === 'Thridan';
+    room.status = 'round_ended';
 
     // Award Points
     room.players.forEach(p => {
-      if (p.role === 'Raja') p.totalScore += POINTS['Raja'];
-      if (p.role === 'Rani') p.totalScore += POINTS['Rani'];
-      if (p.role === 'Mantri') p.totalScore += POINTS['Mantri'];
-
-      if (p.role === 'Sipahi' || p.role === 'Police') {
-        p.totalScore += isSuccess ? POINTS['Sipahi'] : 0;
-      }
-
-      if (p.role === 'Thridan') {
-        p.totalScore += isSuccess ? 0 : POINTS['Sipahi'];
+      // Basic logic: Everyone gets points except Thridan (who was caught)
+      if (p.role !== 'Thridan') {
+        p.totalScore += POINTS[p.role] || 500;
       }
     });
 
-    room.status = 'round_ended';
     room.gameState.revealedRoles = room.players.map(p => ({ playerId: p.id, role: p.role }));
     io.to(roomId).emit('round_ended', room);
-  });
+  }
 
   socket.on('next_round', (roomId) => {
     if (ROOMS[roomId]) {

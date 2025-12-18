@@ -15,6 +15,7 @@ function App() {
   const [localRole, setLocalRole] = useState(null);
   const [message, setMessage] = useState('Waiting for players...');
   const [micOn, setMicOn] = useState(false);
+  const [popup, setPopup] = useState(null); // { type: 'success' | 'error', text: string }
 
   // Voice Chat Refs
   const peerRef = useRef(null);
@@ -23,9 +24,9 @@ function App() {
   const audioRefs = useRef({}); // playerSocketId -> HTMLAudioElement
 
   // Sound Refs
-  const successSound = useRef(new Audio('/sounds/success.mp3'));
+  const successSound = useRef(new Audio('/sounds/valthukal.mp3'));
   const catchSound = useRef(new Audio('/sounds/catch.mp3'));
-  const errorSound = useRef(new Audio('/sounds/error.mp3'));
+  const errorSound = useRef(new Audio('/sounds/nagarjuna.mp3'));
 
   useEffect(() => {
     socket.on('room_update', (updatedRoom) => {
@@ -41,16 +42,19 @@ function App() {
       // Better to wait for deliberate click to avoid echo/spam
     });
 
-    socket.on('raja_success', (updatedRoom) => {
+    socket.on('guess_success', (updatedRoom) => {
       setRoom(updatedRoom);
-      setMessage('Raja found Rani! Now Sipahi must find Chor.');
+      setPopup({ type: 'success', text: 'Valthukal Valthukal!' });
       successSound.current.play().catch(e => console.log('Audio wait user interaction'));
+      setTimeout(() => setPopup(null), 3000);
     });
 
-    socket.on('raja_wrong', ({ room: updatedRoom, message: msg }) => {
+    socket.on('guess_wrong', ({ room: updatedRoom, message: msg }) => {
       setRoom(updatedRoom);
       setMessage(msg);
+      setPopup({ type: 'error', text: 'Enathu Nagarjuna va?' });
       errorSound.current.play().catch(e => console.log('Audio wait user interaction'));
+      setTimeout(() => setPopup(null), 3500);
     });
 
     socket.on('round_ended', (updatedRoom) => {
@@ -145,10 +149,8 @@ function App() {
     if (!room) return;
 
     // Stage check
-    if (room.gameState.stage === 'RAJAS_TURN' && room.gameState.currentGuesser === socket.id) {
-      socket.emit('raja_find_rani', { roomId, targetPlayerId: targetId });
-    } else if (room.gameState.stage === 'SIPAHIS_TURN' && localRole === 'Sipahi') {
-      socket.emit('sipahi_find_chor', { roomId, targetPlayerId: targetId });
+    if (isMyTurn) {
+      socket.emit('make_guess', { roomId, targetPlayerId: targetId });
     }
   };
 
@@ -212,7 +214,39 @@ function App() {
     (room.gameState.stage === 'SIPAHIS_TURN' && localRole === 'Sipahi');
 
   return (
-    <div className="glass">
+    <div className="glass" style={{ position: 'relative' }}>
+      <AnimatePresence>
+        {popup && (
+          <motion.div
+            initial={{ scale: 0, y: 50, opacity: 0 }}
+            animate={{ scale: 1.2, y: 0, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            className={`popup-overlay ${popup.type}`}
+            style={{
+              position: 'absolute',
+              top: '40%',
+              left: '10%',
+              right: '10%',
+              zIndex: 100,
+              padding: '30px',
+              borderRadius: '20px',
+              textAlign: 'center',
+              boxShadow: '0 0 40px rgba(0,0,0,0.5)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 15,
+              background: popup.type === 'success' ? 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)' : 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)',
+              color: 'white',
+              border: '4px solid white'
+            }}
+          >
+            <div style={{ fontSize: 50 }}>{popup.type === 'success' ? '👑' : '🎭'}</div>
+            <div style={{ fontSize: 24, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1 }}>{popup.text}</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <h2>Room: {roomId}</h2>
         <button
