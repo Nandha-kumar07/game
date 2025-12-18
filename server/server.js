@@ -24,14 +24,14 @@ const io = new Server(server, {
 // Existing ROOMS and logic below...
 const ROOMS = {};
 
-const ROLES = ['Raja', 'Rani', 'Mantri', 'Sipahi', 'Police', 'Thridan'];
+const ROLES = ['Raja', 'Rani', 'Mantri', 'Sipahi', 'Police', 'Thirudan'];
 const POINTS = {
   'Raja': 1000,
   'Rani': 800,
   'Mantri': 700,
   'Sipahi': 500,
   'Police': 500,
-  'Thridan': 0
+  'Thirudan': 0
 };
 
 io.on('connection', (socket) => {
@@ -88,10 +88,10 @@ io.on('connection', (socket) => {
 
     const count = room.players.length;
     // Raja, Rani, Mantri, Sipahi, Police, Thirudan
-    let roles = ['Raja', 'Rani', 'Sipahi', 'Thridan']; // Default 4
+    let roles = ['Raja', 'Rani', 'Sipahi', 'Thirudan']; // Default 4
 
-    if (count === 5) roles = ['Raja', 'Rani', 'Mantri', 'Sipahi', 'Thridan'];
-    if (count === 6) roles = ['Raja', 'Rani', 'Mantri', 'Sipahi', 'Police', 'Thridan'];
+    if (count === 5) roles = ['Raja', 'Rani', 'Mantri', 'Sipahi', 'Thirudan'];
+    if (count === 6) roles = ['Raja', 'Rani', 'Mantri', 'Sipahi', 'Police', 'Thirudan'];
 
     // Shuffle roles
     const shuffledRoles = [...roles].sort(() => Math.random() - 0.5);
@@ -129,18 +129,18 @@ io.on('connection', (socket) => {
       'RANIS_TURN': 'Mantri',
       'MANTRIS_TURN': 'Sipahi',
       'SIPAHIS_TURN': 'Police',
-      'POLICES_TURN': 'Thridan'
+      'POLICES_TURN': 'Thirudan'
     };
 
     // Dynamic targets based on player count
     const count = room.players.length;
     if (room.gameState.stage === 'RAJAS_TURN' && count === 4) STAGE_TARGETS['RAJAS_TURN'] = 'Rani'; // Stay Rani
     if (room.gameState.stage === 'RANIS_TURN' && count === 4) STAGE_TARGETS['RANIS_TURN'] = 'Sipahi';
-    if (room.gameState.stage === 'SIPAHIS_TURN') STAGE_TARGETS['SIPAHIS_TURN'] = 'Thridan';
+    if (room.gameState.stage === 'SIPAHIS_TURN') STAGE_TARGETS['SIPAHIS_TURN'] = 'Thirudan';
 
     if (count === 5) {
       if (room.gameState.stage === 'MANTRIS_TURN') STAGE_TARGETS['MANTRIS_TURN'] = 'Sipahi';
-      if (room.gameState.stage === 'SIPAHIS_TURN') STAGE_TARGETS['SIPAHIS_TURN'] = 'Thridan';
+      if (room.gameState.stage === 'SIPAHIS_TURN') STAGE_TARGETS['SIPAHIS_TURN'] = 'Thirudan';
     }
 
     const targetRole = STAGE_TARGETS[room.gameState.stage];
@@ -213,7 +213,7 @@ io.on('connection', (socket) => {
 
     // Everyone who wasn't caught gets their role points if they didn't already
     room.players.forEach(p => {
-      if (!p.isFinished && p.role !== 'Thridan') {
+      if (!p.isFinished && p.role !== 'Thirudan') {
         p.totalScore += (POINTS[p.role] || 0);
       }
     });

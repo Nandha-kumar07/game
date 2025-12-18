@@ -14,7 +14,8 @@ function App() {
   const [roomId, setRoomId] = useState('');
   const [room, setRoom] = useState(null);
   const [isJoined, setIsJoined] = useState(false);
-  const [localRole, setLocalRole] = useState(null);
+  // Derive localRole from room to stay in sync after swaps
+  const localRole = room?.players?.find(p => p.id === socket.id)?.role || null;
   const [message, setMessage] = useState('Waiting for players...');
   const [micOn, setMicOn] = useState(false);
   const [popup, setPopup] = useState(null);
@@ -33,7 +34,6 @@ function App() {
     socket.on('start_round', (updatedRoom) => {
       setRoom(updatedRoom);
       const me = updatedRoom.players.find(p => p.id === socket.id);
-      setLocalRole(me.role);
       setMessage(`You are ${me.role}! Let's find your target.`);
     });
 
@@ -206,7 +206,7 @@ function App() {
                     {p.role === 'Mantri' && <Trophy size={14} />}
                     {p.role === 'Sipahi' && <Shield size={14} />}
                     {p.role === 'Police' && <Shield size={14} />}
-                    {p.role === 'Thridan' && <Ghost size={14} />}
+                    {p.role === 'Thirudan' && <Ghost size={14} />}
                     <span style={{ marginLeft: 4 }}>{p.role}</span>
                   </motion.div>
                 ) : (
