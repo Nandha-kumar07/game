@@ -201,7 +201,7 @@ io.on('connection', (socket) => {
 
       io.to(roomId).emit('guess_wrong', {
         room,
-        message: `Oops! ${target.name} was ${oldTargetRole}. Roles swapped! ${target.name} is now ${oldGuesserRole}!`
+        message: `Oops! Guess was wrong. Roles have been swapped!`
       });
     }
   });

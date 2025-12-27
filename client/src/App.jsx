@@ -44,9 +44,10 @@ function App() {
       setTimeout(() => setPopup(null), 3000);
     });
 
-    socket.on('guess_wrong', ({ room: updatedRoom, message: msg }) => {
+    socket.on('guess_wrong', ({ room: updatedRoom }) => {
       setRoom(updatedRoom);
-      setMessage(msg);
+      const me = updatedRoom.players.find(p => p.id === socket.id);
+      setMessage(`Roles Swapped! You are now ${me.role}!`);
       setPopup({ type: 'error', text: 'Oops! Role Swapped.' });
       errorSound.current.play().catch(() => { });
       setTimeout(() => setPopup(null), 3500);
