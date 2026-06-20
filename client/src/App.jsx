@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Users, LogIn, Crown, Shield, User, Ghost, Trophy, Mic, MicOff, RefreshCw, Award, Search, HelpCircle, AlertCircle } from 'lucide-react';
 
 import successMp3 from './assets/valthukal-valthuka.mp3';
+import wrongGuessMp3 from './assets/AUD-20260620-WA0007.mp3';
 
 const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const socket = io(BACKEND_URL);
@@ -26,7 +27,7 @@ function App() {
   const audioRefs = useRef({});
 
   const successSound = useRef(new Audio(successMp3));
-  const errorSound = useRef(new Audio('/sounds/nagarjuna.mp3'));
+  const errorSound = useRef(new Audio(wrongGuessMp3));
 
   useEffect(() => {
     socket.on('room_update', (updatedRoom) => setRoom(updatedRoom));
